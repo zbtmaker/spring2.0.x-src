@@ -1,0 +1,140 @@
+/*
+ * Copyright 2002-2006 the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.springframework.web.servlet.tags.form;
+
+import org.springframework.util.ObjectUtils;
+
+import javax.servlet.jsp.JspException;
+import javax.servlet.jsp.PageContext;
+import javax.servlet.jsp.tagext.BodyTag;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/**
+ * Form tag for displaying errors for a particular field or object.
+ * 
+ * <p>This tag supports three main usage patterns:
+ *
+ * <ol>
+ *	<li>Field only - set '<code>path</code>' to the field name (or path)</li>
+ *	<li>Object errors only - omit '<code>path</code>'</li>
+ *	<li>All errors - set '<code>path</code>' to '<code>*</code>'</li>
+ * </ol>
+ *
+ * @author Rob Harrop
+ * @since 2.0
+ */
+public class ErrorsTag extends AbstractHtmlElementBodyTag implements BodyTag {
+
+	/**
+	 * The key under which this tag exposes error messages in
+	 * the {@link PageContext#PAGE_SCOPE page context scope}.
+	 */
+	public static final String MESSAGES_ATTRIBUTE = "messages";
+
+	/**
+	 * The HTML '<code>span</code>' tag.
+	 */
+	public static final String SPAN_TAG = "span";
+
+
+	private String delimiter = "<br/>";
+
+
+	/**
+	 * Stores any value that existed in the 'errors messages' before the tag was started.
+	 */
+	private Object oldMessages;
+	
+	private boolean errorMessagesWereExposed;
+
+	/**
+	 * Sets what delimiter must be used between error messages.
+	 * <p>Defaults to an HTML '<code>&lt;br/&gt;</code>' tag.
+	 * @param delimiter said delimeter
+	 */
+	public void setDelimiter(String delimiter) {
+		this.delimiter = delimiter;
+	}
+
+
+	/**
+	 * Gets the value for the HTML '<code>name</code>' attribute.
+	 * <p>Appends '<code>.errors</code>' to the value returned by {@link #getPath()}.
+	 * @return the value for the HTML '<code>name</code>' attribute.
+	 * @see #getPath() 
+	 */
+	protected String getName() throws JspException {
+		return getPath() + ".errors";
+	}
+
+	/**
+	 * Should rendering of this tag proceed at all?
+	 * <p>Only renders output when there are errors for the configured {@link #setPath path}.
+	 * @return <code>true</code> only when there are errors for the configured {@link #setPath path}
+	 */
+	protected boolean shouldRender() throws JspException {
+		return getBindStatus().isError();
+	}
+
+	protected void renderDefaultContent(TagWriter tagWriter) throws JspException {
+		tagWriter.startTag(SPAN_TAG);
+		writeDefaultAttributes(tagWriter);
+		String delimiter = ObjectUtils.getDisplayString(evaluate("delimiter", this.delimiter));
+		String[] errorMessages = getBindStatus().getErrorMessages();
+		for (int i = 0; i < errorMessages.length; i++) {
+			String errorMessage = errorMessages[i];
+			if (i > 0) {
+				tagWriter.appendValue(delimiter);
+			}
+			tagWriter.appendValue(errorMessage);
+		}
+		tagWriter.endTag();
+	}
+
+	/**
+	 * Exposes any bind status error messages under {@link #MESSAGES_ATTRIBUTE this key}
+	 * in the {@link PageContext#PAGE_SCOPE}.
+	 * <p>Only called if {@link #shouldRender()} returns <code>true</code>.
+	 * @see #removeAttributes()
+	 */
+	protected void exposeAttributes() throws JspException {
+		List errorMessages = new ArrayList();
+		errorMessages.addAll(Arrays.asList(getBindStatus().getErrorMessages()));
+		this.oldMessages = this.pageContext.getAttribute(MESSAGES_ATTRIBUTE, PageContext.PAGE_SCOPE);
+		this.pageContext.setAttribute(MESSAGES_ATTRIBUTE, errorMessages, PageContext.PAGE_SCOPE);
+		this.errorMessagesWereExposed = true;
+	}
+
+	/**
+	 * Removes any bind status error messages that were previously stored under
+	 * {@link #MESSAGES_ATTRIBUTE this key} in the {@link PageContext#PAGE_SCOPE}.
+	 * @see #exposeAttributes()
+	 */
+	protected void removeAttributes() {
+		if (this.errorMessagesWereExposed) {
+			if (this.oldMessages != null) {
+				this.pageContext.setAttribute(MESSAGES_ATTRIBUTE, this.oldMessages, PageContext.PAGE_SCOPE);
+				this.oldMessages = null;
+			} else {
+				this.pageContext.removeAttribute(MESSAGES_ATTRIBUTE, PageContext.PAGE_SCOPE);
+			}
+		}
+	}
+
+}
